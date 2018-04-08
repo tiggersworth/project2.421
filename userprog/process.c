@@ -25,6 +25,12 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
+
+/* NEEDS TO BE DONE: process_execute needs to support passing arguments
+   to new processes. Needs to divide the program file name into words at
+   spaces. This concerns argument passing. Suggest looking at strtok_r()
+   in 'lib/string.h'. */
+
 tid_t
 process_execute (const char *file_name) 
 {
@@ -37,6 +43,13 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  
+  /* Need to satisfy argument passing so break file name into words. */
+  char *save_ptr; //consistent with str_tok_r code implementation
+  file_name = ((char *) file_name, " ", &save_ptr);
+
+
+  //Question: Will there be a issue with fn_copy and file_name not being the same???
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
@@ -219,10 +232,20 @@ load (const char *file_name, void (**eip) (void), void **esp)
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
-  process_activate ();
+  process_activate (); //Tyler: switch to process
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  // Tyler: Problem will occur if there are args because need 
+  // just command file_name (updated this, look through to make sure
+  // it's correct.
+  char * fn_copy;
+  cmd_name = malloc (strlen(file_name) + 1);
+  strlcpy(fn_copy, file_name, strlen(file_name) + 1);
+
+  char * save_ptr;
+  fn_copy = ((char *) file_name, " ", &save_ptr);
+
+  file = filesys_open (fn_copy);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -437,7 +460,9 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE - 12; //changing this for right now so
+			       //arguments do not have to be   	
+			       //taken
       else
         palloc_free_page (kpage);
     }
