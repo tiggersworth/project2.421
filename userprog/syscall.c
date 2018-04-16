@@ -15,7 +15,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-/*
+
   //Need to create a function to check if it is a valid pointer
   switch (* (int *) f->esp){
 	  case SYS_HALT:
@@ -89,9 +89,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 		  thread_exit ();
 		  }
 }
-*/
+/*
 printf ("system call not available!\n");
 		  thread_exit ();
+*/
 
 }
 
