@@ -18,12 +18,17 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+static thread_func start_process NO_RETURN;
+static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static void get_command(char *command_name, char *command_line);
+static void get_arguments(char *argv[], int *argc, char *command_line);
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
-
-tid_t process_execute (const char *file_name) 
+tid_t
+process_execute (const char *file_name) 
 {
   char *fn_copy;
   char *fn_command;
@@ -98,7 +103,6 @@ start_process (void *file_name_)
    child of the calling process, or if process_wait() has already
    been successfully called for the given TID, returns -1
    immediately, without waiting.
-
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
@@ -147,6 +151,75 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
+
+/* We load ELF binaries.  The following definitions are taken
+   from the ELF specification, [ELF1], more-or-less verbatim.  */
+
+/* ELF types.  See [ELF1] 1-2. */
+typedef uint32_t Elf32_Word, Elf32_Addr, Elf32_Off;
+typedef uint16_t Elf32_Half;
+
+/* For use with ELF types in printf(). */
+#define PE32Wx PRIx32   /* Print Elf32_Word in hexadecimal. */
+#define PE32Ax PRIx32   /* Print Elf32_Addr in hexadecimal. */
+#define PE32Ox PRIx32   /* Print Elf32_Off in hexadecimal. */
+#define PE32Hx PRIx16   /* Print Elf32_Half in hexadecimal. */
+
+/* Executable header.  See [ELF1] 1-4 to 1-8.
+   This appears at the very beginning of an ELF binary. */
+struct Elf32_Ehdr
+  {
+    unsigned char e_ident[16];
+    Elf32_Half    e_type;
+    Elf32_Half    e_machine;
+    Elf32_Word    e_version;
+    Elf32_Addr    e_entry;
+    Elf32_Off     e_phoff;
+    Elf32_Off     e_shoff;
+    Elf32_Word    e_flags;
+    Elf32_Half    e_ehsize;
+    Elf32_Half    e_phentsize;
+    Elf32_Half    e_phnum;
+    Elf32_Half    e_shentsize;
+    Elf32_Half    e_shnum;
+    Elf32_Half    e_shstrndx;
+  };
+
+/* Program header.  See [ELF1] 2-2 to 2-4.
+   There are e_phnum of these, starting at file offset e_phoff
+   (see [ELF1] 1-6). */
+struct Elf32_Phdr
+  {
+    Elf32_Word p_type;
+    Elf32_Off  p_offset;
+    Elf32_Addr p_vaddr;
+    Elf32_Addr p_paddr;
+    Elf32_Word p_filesz;
+    Elf32_Word p_memsz;
+    Elf32_Word p_flags;
+    Elf32_Word p_align;
+  };
+
+/* Values for p_type.  See [ELF1] 2-3. */
+#define PT_NULL    0            /* Ignore. */
+#define PT_LOAD    1            /* Loadable segment. */
+#define PT_DYNAMIC 2            /* Dynamic linking info. */
+#define PT_INTERP  3            /* Name of dynamic loader. */
+#define PT_NOTE    4            /* Auxiliary info. */
+#define PT_SHLIB   5            /* Reserved. */
+#define PT_PHDR    6            /* Program header table. */
+#define PT_STACK   0x6474e551   /* Stack segment. */
+
+/* Flags for p_flags.  See [ELF3] 2-3 and 2-4. */
+#define PF_X 1          /* Executable. */
+#define PF_W 2          /* Writable. */
+#define PF_R 4          /* Readable. */
+
+static bool setup_stack (void **esp);
+static bool validate_segment (const struct Elf32_Phdr *, struct file *);
+static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
+                          uint32_t read_bytes, uint32_t zero_bytes,
+                          bool writable);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -168,6 +241,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *argv[25];
   int argc = 0;
   get_arguments(argv, &argc, fn_arguments);
+  char fn_command_name = argv[0];
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -175,10 +249,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  file = filesys_open (fn_copy);
+  /* Open executable file. */
+  file = filesys_open (fn_command_name);
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", fn_command_name);
       goto done; 
     }
 
@@ -268,6 +343,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file_close (file);
   return success;
 }
+
+/* load() helpers. */
+
+static bool install_page (void *upage, void *kpage, bool writable);
 
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
@@ -317,15 +396,11 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
 /* Loads a segment starting at offset OFS in FILE at address
    UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
    memory are initialized, as follows:
-
         - READ_BYTES bytes at UPAGE must be read from FILE
           starting at offset OFS.
-
         - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
-
    The pages initialized by this function must be writable by the
    user process if WRITABLE is true, read-only otherwise.
-
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
@@ -386,9 +461,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12; //changing this for right now so
-			       //arguments do not have to be   	
-			       //taken
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
@@ -416,17 +489,18 @@ install_page (void *upage, void *kpage, bool writable)
 }
 
 /* Argument Parsing Helper Functions */
+
+
+
 static void get_command(char *command_name, char *command_line){
 	char *save_ptr;
 	command_name = strtok_r(command_name, DELIMITER, &save_ptr);
 }
 
-static get_arguments(char *argv[], int *argc, char *command_line){
+static void get_arguments(char *argv[], int *argc, char *command_line){
 	char *token, *save_ptr;
-	argv[argc] = strtok_r(command_line, DELIMITER, &save_ptr);
+	argv[*argc] = strtok_r(command_line, DELIMITER, &save_ptr);
         for(token = strtok_r(command_line, DELIMITER, &save_ptr); token != NULL;	token = strtok_r(NULL, DELIMITER, &save_ptr)){
-			argv[argc++] = token;
+			argv[*argc++] = token;
 	}
 }
-
-
