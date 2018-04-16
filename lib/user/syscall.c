@@ -61,31 +61,20 @@
           retval;                                               \
         })
 
-/* Terminates Pintos by calling shutdown_power_off() (declared in 'devices/shutdown.h'). This
-should be seldom used, because you lose some information about possible deadlock situations, etc.*/
 void
 halt (void) 
 {
-  shutdown_power_off(); //unsure if 'devices/shutdown.h' is 
-			//linked
+  syscall0 (SYS_HALT);
+  NOT_REACHED ();
 }
 
-/* Terminates the current user program, returning status to the kernel. If the process's parent
-waits for it, this is the status will be the status that is returned. Conventionally a status of 
-0 indicates success and nonzero values indicate errors.*/
 void
 exit (int status)
 {
   syscall1 (SYS_EXIT, status);
   NOT_REACHED ();
-  
 }
 
-/* Runs the executable whose name is given in cmd_line, passing any arguments, and returns the
-new process's program id (pid). Must return pid -1, which otherwise should not be a valid pid,
-if the program cannot load or run for any reason. Thus the parent process cannot return from exec
-until it knows whether the child process successfully loaded its executable. You must use 
-appropriate synchronization to ensure this.*/
 pid_t
 exec (const char *file)
 {
@@ -98,8 +87,6 @@ wait (pid_t pid)
   return syscall1 (SYS_WAIT, pid);
 }
 
-/* Creates a new file called file initially initial_size bytes in size. Returns true if successful,
-false otherwise. Creating a new file does not open it: opening the new file is a separate operation which would require a open system call.*/
 bool
 create (const char *file, unsigned initial_size)
 {
