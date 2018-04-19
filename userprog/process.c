@@ -20,8 +20,6 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-static void get_command(char *command_name, char *command_line);
-static void get_arguments(char *argv[], int *argc, char *command_line);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -32,6 +30,7 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   char *fn_command;
+  char *save_ptr;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -52,7 +51,7 @@ process_execute (const char *file_name)
   strlcpy(fn_command, file_name, PGSIZE);
 
   /* Retrieve command. */
-  get_command(fn_command, fn_copy);
+  fn_command = strtok_r(fn_command, DELIMITER, &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
@@ -233,6 +232,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   struct file *file = NULL;
   off_t file_ofs;
   bool success = false;
+  char *token, *save_ptr;
   int i;
 
   /* Parse the arguments */
@@ -240,7 +240,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
   strlcpy(fn_arguments, file_name, 120);
   char *argv[25];
   int argc = 0;
-  get_arguments(argv, &argc, fn_arguments);
+  argv[argc] = strtok_r(fn_arguments, DELIMITER, &save_ptr);
+  for(token = strtok_r(fn_arguments, DELIMITER, &save_ptr); 
+      token != NULL; token = strtok_r(NULL, DELIMITER, &save_ptr)){
+	argv[argc++];
+  }
   char fn_command_name = argv[0];
 
   /* Allocate and activate page directory. */
@@ -488,19 +492,3 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
-/* Argument Parsing Helper Functions */
-
-
-
-static void get_command(char *command_name, char *command_line){
-	char *save_ptr;
-	command_name = strtok_r(command_name, DELIMITER, &save_ptr);
-}
-
-static void get_arguments(char *argv[], int *argc, char *command_line){
-	char *token, *save_ptr;
-	argv[*argc] = strtok_r(command_line, DELIMITER, &save_ptr);
-        for(token = strtok_r(command_line, DELIMITER, &save_ptr); token != NULL;	token = strtok_r(NULL, DELIMITER, &save_ptr)){
-			argv[*argc++] = token;
-	}
-}
