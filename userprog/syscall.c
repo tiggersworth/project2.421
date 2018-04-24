@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 
 static void syscall_handler (struct intr_frame *);
+//static void valid_pointer_check(int UNSURE);
 
 void
 syscall_init (void) 
@@ -95,4 +96,31 @@ printf ("system call not available!\n");
 */
 
 }
+
+/* Need a function that checks the validity of user pointer */
+/*
+static void valid_pointer_check(int UNSURE){
+	switch(UNSURE){
+		case (&UNSURE == NULL):	
+			{
+			//Kill Process and Free Its Resources
+			}
+		case (UNSURE >= PHYS_BASE):	
+			{
+			//Kill Process and Free Its Resources
+			}
+		case (//Mapped to an unmapped memory location):
+			{
+			//Kill Process and Free Its Resources
+			}
+		default:
+			{
+			//Do Nothing
+			}
+	}
+}
+/*
+
+
+
 
