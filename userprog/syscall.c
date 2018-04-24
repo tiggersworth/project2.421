@@ -16,9 +16,11 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-
+  int * usr_ptr = f->esp;
+  //valid_pointer_check(usr_ptr);
   //Need to create a function to check if it is a valid pointer
-  switch (* (int *) f->esp){
+  //(* (int *) f->esp)  ----> * usr_ptr
+  switch (* usr_ptr){
 	  case SYS_HALT:
 		  {
 			  shutdown_power_off();
@@ -99,19 +101,22 @@ printf ("system call not available!\n");
 
 /* Need a function that checks the validity of user pointer */
 /*
-static void valid_pointer_check(int UNSURE){
+static void valid_pointer_check(int* usr_ptr){
 	switch(UNSURE){
-		case (&UNSURE == NULL):	
+		case (&usr_ptr == NULL):	
 			{
 			//Kill Process and Free Its Resources
+			kill_process();
 			}
-		case (UNSURE >= PHYS_BASE):	
+		case (usr_ptr >= PHYS_BASE):	
 			{
 			//Kill Process and Free Its Resources
+			kill_process();
 			}
 		case (//Mapped to an unmapped memory location):
 			{
 			//Kill Process and Free Its Resources
+			kill_process();
 			}
 		default:
 			{
@@ -119,7 +124,13 @@ static void valid_pointer_check(int UNSURE){
 			}
 	}
 }
-/*
+*/
+
+/* Prof. Kosar: "Process is a single thread. So, you can use thread_exit() to kill the process." */
+static void kill_process(){
+	thread_exit();
+}
+
 
 
 
