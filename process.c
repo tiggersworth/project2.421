@@ -24,7 +24,8 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
-   thread id, or TID_ERROR if the thread cannot be created. */
+   thread id, or TID_ERROR if 
+the thread cannot be created. */
 tid_t
 process_execute (const char *file_name) 
 {
@@ -40,24 +41,35 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-  
+ 
+
   fn_command = palloc_get_page (0);
-  fn_command = strtok_r(fn_command, " ", &save_ptr);
-  if (fn_copy == NULL)
-  {
+  if(fn_command == NULL){
+    palloc_free_page(fn_copy);
     return TID_ERROR;
   }
 
   strlcpy (fn_command, fn_copy, PGSIZE);
 
+  fn_command = strtok_r(fn_command, " ", &save_ptr);
 
+  printf("fn_command is: ");
+  printf(fn_command);
+  printf("\n");
+
+  thread_current() -> command_args = fn_command;
+
+  printf(thread_current() -> command_args);
+  printf("\n");
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
 
-  thread_current() -> command_args = fn_command;
-
+  /*struct thread *thd;
+  thd = thread_get(tid);
+  thd -> command_args = fn_command;*/
+  
   return tid;
 }
 
@@ -69,14 +81,21 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-
+  
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
 
+  /*printf(file_name_);*/
+  printf("Start Process: ");
+  printf("\n");
+  printf(file_name);
+  printf("\n");
+
+  success = load (file_name, &if_.eip, &if_.esp);
+  /*printf("s4");*/
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -227,10 +246,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
+  char *fn_command;
+  char *save_ptr;
   off_t file_ofs;
   bool success = false;
   int i;
 
+  
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -238,10 +260,29 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (thread_current() -> command_args);
+  fn_command = palloc_get_page (0);
+  if(fn_command == NULL){
+    return TID_ERROR;
+  }
+
+  strlcpy (fn_command, file_name, PGSIZE);
+
+  fn_command = strtok_r(fn_command, " ", &save_ptr);
+ 
+  if(fn_command !=NULL){
+  printf("Load Process: ");
+  printf("\n");
+  printf(fn_command);
+  printf("\n");
+  }
+  else{
+  printf("NOTHING HERE");
+  }
+  file = filesys_open (fn_command);
+  /*printf("s5");*/
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", thread_current() -> command_args);
+      printf ("load: %s: open failed\n", fn_command);
       goto done; 
     }
 
@@ -450,7 +491,7 @@ setup_stack (void **esp)
  
   char *tokens;
   char *save_ptrs;
-  char fn_arguments[40];
+  char *fn_arguments;
   char *argv_address;
   char **argv[40];
   int argc;
@@ -464,7 +505,8 @@ setup_stack (void **esp)
       {
         *esp = PHYS_BASE;
 	
-	strlcpy(fn_arguments, thread_current() -> command_args, 40);
+	fn_arguments = thread_current() -> command_args;
+	
 	argc = 0;
 	int count;
 	for(tokens = strtok_r(fn_arguments, " ", &save_ptrs); tokens != NULL; tokens = strtok_r(NULL, " ", &save_ptrs))
@@ -490,7 +532,7 @@ setup_stack (void **esp)
 	
 	argv_address = *esp;
 	*esp = *esp -4;
-	memcpy(*esp, &argv, 4);
+	memcpy(*esp, &argv_address, 4);
 	*esp = *esp -4;
 	*(int *)(*esp) = argc;
 	*esp = *esp -4;
