@@ -497,11 +497,11 @@ setup_stack (const char *file_name, void **esp)
   char *fn_arguments;
   char *argv_address;
   char **argv[40];
+  char *words[40];
   int argc;
   
-  printf("\n");
-  	printf(file_name);
-  	printf("\n");
+  
+  	
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
@@ -519,37 +519,69 @@ setup_stack (const char *file_name, void **esp)
   
 	strlcpy (fn_arguments, file_name, PGSIZE);
 	//fn_arguments = file_name;
-	
+	printf(fn_arguments);
+  	printf("\n");
 	argc = 0;
 	int count;
 	for(tokens = strtok_r(fn_arguments, " ", &save_ptrs); tokens != NULL; tokens = strtok_r(NULL, " ", &save_ptrs))
 	{
-		*esp = *esp - (strlen(tokens) +1);
-		argv[argc] = *esp;
-		argc = argc+1;
-		memcpy(*esp, tokens, strlen(tokens+1));		
+		//*esp -= 1;
+		//*esp = *esp - (strlen(tokens));
+		//argv[argc] = *esp;
+		words[argc] = tokens;		
 
+		printf("words[]: \n");
+		printf(words[argc]);
+		printf("\n");
+		
+		//memcpy(*esp, tokens, strlen(tokens));
+				
+		argc = argc+1;
+		//memcpy(*esp, tokens, strlen(tokens+1));		
+		printf("argc: \n");
+		printf("%d", argc);
+		printf("\n");
 
 	}
 	
-	*esp = *esp -4;
-	*(int *)(*esp) = 0;
+	//copy arguments to stack
+	for( count =argc-1 ; count >= 0; count--)
+	{
+		printf("Args to Stack: \n");
 	
-	for( count =argc ; count >= 0; count--)
+		*esp -= 1;
+		//char *stack_args = words[count];
+		printf(words[count]);
+		printf("\n");
+		*esp = *esp - (strlen(words[count]));
+	
+		argv[count] = *esp;
+		
+		memcpy(*esp, words[count], strlen(words[count]));
+	}
+
+	*esp = *esp -4;
+	//*(int *)(*esp) = 0;
+	//argv[argc] = 0;
+	
+	//copy arg address to stack
+	for( count =argc-1 ; count >= 0; count--)
 	{
 	
-		*esp = *esp -4;
-		memcpy(*esp, &argv[count], 4);
+		*esp = *esp - sizeof(char* );
+		memcpy(*esp, &argv[count], sizeof(char* ));
 
 	}
 	
 	argv_address = *esp;
-	*esp = *esp -4;
-	memcpy(*esp, &argv_address, 4);
-	*esp = *esp -4;
-	*(int *)(*esp) = argc;
-	*esp = *esp -4;
-	*(int *)(*esp) = 0;
+	*esp = *esp - sizeof(char** );
+	memcpy(*esp, &argv_address, sizeof(char** ));
+
+	*esp = *esp - sizeof(int);
+	memcpy(*esp, &argc, sizeof(int));
+
+	*esp = *esp - sizeof(void *);
+	memcpy(*esp, &argv[argc], sizeof(void *));
 
 	hex_dump(PHYS_BASE - 128, PHYS_BASE - 128, 128, true);
 	
