@@ -121,7 +121,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  while(1);
+  //while(1);
 
   return -1;
 }
@@ -499,6 +499,7 @@ setup_stack (const char *file_name, void **esp)
   char **argv[40];
   char *words[40];
   int argc;
+  int arg_length;
   
   
   	
@@ -549,17 +550,25 @@ setup_stack (const char *file_name, void **esp)
 	{
 		printf("Args to Stack: \n");
 	
-		*esp -= 1;
+		//*esp -= 1;
 		//char *stack_args = words[count];
 		printf(words[count]);
 		printf("\n");
-		*esp = *esp - (strlen(words[count]));
+		*esp = *esp - (strlen(words[count])+1);
 	
 		argv[count] = *esp;
 		
+		//see if it needs padding
+		arg_length = strlen(words[count])+1 + arg_length;
+
 		memcpy(*esp, words[count], strlen(words[count]));
 	}
-
+	
+	//padding
+	if(arg_length % 4 != 0)
+	{
+		*esp = *esp - (4-arg_length % 4);	
+	}
 	*esp = *esp -4;
 	//*(int *)(*esp) = 0;
 	//argv[argc] = 0;
@@ -573,13 +582,14 @@ setup_stack (const char *file_name, void **esp)
 
 	}
 	
+	//argv address to stack
 	argv_address = *esp;
 	*esp = *esp - sizeof(char** );
 	memcpy(*esp, &argv_address, sizeof(char** ));
-
+	//argc to stack
 	*esp = *esp - sizeof(int);
 	memcpy(*esp, &argc, sizeof(int));
-
+	//fake return address
 	*esp = *esp - sizeof(void *);
 	memcpy(*esp, &argv[argc], sizeof(void *));
 

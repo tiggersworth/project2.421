@@ -6,6 +6,7 @@
 
 static void syscall_handler (struct intr_frame *);
 
+
 void
 syscall_init (void) 
 {
@@ -17,4 +18,14 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
   printf ("system call!\n");
   thread_exit ();
+}
+
+void halt (void)
+{
+  shutdown_power_off();
+}
+
+void exit (int status)
+{
+  
 }
