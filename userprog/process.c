@@ -97,7 +97,7 @@ start_process (void *file_name_)
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
-    thread_exit ();
+    thread_exit (-1);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -128,7 +128,7 @@ process_wait (tid_t child_tid UNUSED)
 
 /* Free the current process's resources. */
 void
-process_exit (void)
+process_exit (int s)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
