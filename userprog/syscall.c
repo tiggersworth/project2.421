@@ -3,9 +3,22 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "devices/input.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
+#include "userprog/pagedir.h"
+
+
 
 static void syscall_handler (struct intr_frame *);
-//static void valid_pointer_check(int UNSURE);
+
+struct file_process
+{
+	int fd;
+	struct file* file;
+	struct list_elem file_elem;
+};
 
 void
 syscall_init (void) 
@@ -16,122 +29,123 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  int * usr_ptr = f->esp;
-  //valid_pointer_check(usr_ptr);
-  //Need to create a function to check if it is a valid pointer
-  //(* (int *) f->esp)  ----> * usr_ptr
-  switch (* usr_ptr){
-	  case SYS_HALT:
-		  {
-			  shutdown_power_off();
-			  break;
-		  }
-	  case SYS_EXIT:
-		  {
-			  //What sys_exit will do
-			  break;
-		  }
-          case SYS_EXEC:
-		  {
-			  //What sys_exec will do
-			  break;
-		  }
-	  case SYS_WAIT:
-		  {
-			  //What sys_wait will do
-			  break;
-		  }
-          case SYS_CREATE:
-		  {
-			  //What sys_create will do
-			  break;
-		   }
-          case SYS_REMOVE:
-		  {
-			  //What sys_remove will do
-			  break;
-			   }
-          case SYS_OPEN:
-		  {
-			  //What sys_open will do
-			  break;
-			   }
-          case SYS_FILESIZE:
-		  {
-			  //What sys_filesize will do
-			  break;
-			   }
-          case SYS_READ:
-		  {
-			  //What sys_read will do
-			  break;
-			   }
-          case SYS_WRITE:
-		  {
-			  //What sys_write will do
-			  break;
-			   }
-          case SYS_SEEK:
-		  {
-			  //What sys_seek will do
-			  break;
-			   }
-          case SYS_TELL:
-		  {
-			  //What sys_tell will do
-			  break;
-		   }
-          case SYS_CLOSE:
-		  {
-			  //What sys_close will do
-			  break;
-		  }
-          default:
-		  {
-		  printf ("system call not available!\n");
-		  thread_exit ();
-		  }
-}
-/*
-printf ("system call not available!\n");
-		  thread_exit ();
-*/
+  printf ("system call!\n");
+  
+  if(!(is_user_vaddr((const void*) f->esp)))
+  {
+	thread_exit(-1);
+  }
 
-}
-
-/* Need a function that checks the validity of user pointer */
-/*
-static void valid_pointer_check(int* usr_ptr){
-	switch(UNSURE){
-		case (&usr_ptr == NULL):	
-			{
-			//Kill Process and Free Its Resources
-			kill_process();
-			}
-		case (usr_ptr >= PHYS_BASE):	
-			{
-			//Kill Process and Free Its Resources
-			kill_process();
-			}
-		case (//Mapped to an unmapped memory location):
-			{
-			//Kill Process and Free Its Resources
-			kill_process();
-			}
-		default:
-			{
-			//Do Nothing
-			}
+  switch( *(int *) f->esp)
+  {
+	case SYS_HALT:
+	{
+		shutdown_power_off();
+		break;
 	}
+	case SYS_EXIT:
+	{
+		if(!(is_user_vaddr((const void*) (f->esp+4))))
+  		{
+			thread_exit(-1);
+  		}
+		int status;
+		status = *((int *) f->esp+1);
+		thread_exit(status);
+		break;
+	}
+	case SYS_EXEC:
+	{
+		if(!(is_user_vaddr((const void*) (f->esp+4))))
+  		{
+			thread_exit(-1);
+  		}
+		
+		struct thread *cur = thread_current();
+		void* filename = *(char **)(f->esp+4);
+		filename = pagedir_get_page(cur->pagedir, (const void *) filename);
+		
+		if(!filename)
+		{
+			thread_exit(-1);
+		}
+		char *command = *(char **)(f->esp+4);
+		f->eax = process_execute((const char*) command);	
+			
+			
+		
+		break;
+	}
+	case SYS_WAIT:
+	{
+		while(1);
+		break;
+	}	
+	case SYS_CREATE:
+	{
+		break;
+	}
+	case SYS_REMOVE:
+	{
+		break;
+	}
+	case SYS_OPEN:
+	{
+		break;
+	}
+	case SYS_FILESIZE:
+	{
+		break;
+	}
+	case SYS_READ:
+	{
+		// int read (int fd, void *buffer, unsigned size)
+		int fd = *(int *)(f->esp + 4);
+		printf("fd : ");
+		printf(fd);
+		void *buffer = *(char **)(f->esp + 8);
+		printf("buffer: ");
+		printf(buffer);
+		unsigned size = *(unsigned *)(f->esp + 12);
+		printf("size: ");
+		printf(size);
+		// Read size bytes from the file open as fd into buffer
+		// f->eax = number of bytes actually read (0 at end of file)
+		// ERROR: f->eax = -1 if file could not be read (due to a 
+		// 		   condition other than end of file).
+		// Fd 0 reads from the keyboard using input_getc()
+		if(fd == 0){
+			int i;
+			for(i=0; i < size; i++){
+				buffer[i] = input_getc();
+			}
+			f->eax = size;
+		}
+		else{
+			f->eax = -1;
+		}
+		break;
+	}
+	case SYS_WRITE:
+	{
+		break;
+	}
+	case SYS_SEEK:
+	{
+		break;
+	}
+	case SYS_TELL:
+	{
+		break;
+	}
+	case SYS_CLOSE:
+	{
+		break;
+	}
+
+  }
+
+void exit (int status)
+{
+  thread_exit(status);
 }
-*/
-
-/* Prof. Kosar: "Process is a single thread. So, you can use thread_exit() to kill the process." */
-static void kill_process(){
-	thread_exit();
-}
-
-
-
-
-
