@@ -8,7 +8,7 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "userprog/pagedir.h"
-
+#include "userprog/process.h"
 
 
 static void syscall_handler (struct intr_frame *);
@@ -29,7 +29,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
+  //printf ("system call!\n");
   
   if(!(is_user_vaddr((const void*) f->esp)))
   {
@@ -40,11 +40,13 @@ syscall_handler (struct intr_frame *f UNUSED)
   {
 	case SYS_HALT:
 	{
+		//printf("sys_halt \n");
 		halt();
 		break;
 	}
 	case SYS_EXIT:
 	{
+		//printf("sys_exit \n");
 		if(!(is_user_vaddr((const void*) (f->esp+4))))
   		{
 			thread_exit(-1);
@@ -56,6 +58,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	case SYS_EXEC:
 	{
+		//printf("sys_exec \n");
 		if(!(is_user_vaddr((const void*) (f->esp+4))))
   		{
 			thread_exit(-1);
@@ -65,12 +68,13 @@ syscall_handler (struct intr_frame *f UNUSED)
 		void* filename = *(char **)(f->esp+4);
 		filename = pagedir_get_page(cur->pagedir, (const void *) filename);
 		
-		if(!filename)
+		if(filename == NULL)
 		{
 			thread_exit(-1);
 		}
 		char *command = *(char **)(f->esp+4);
-		f->eax = process_execute((const char*) command);	
+		
+		f->eax = exec((const char*) command);	
 			
 			
 		
@@ -78,42 +82,72 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	case SYS_WAIT:
 	{
+		//printf("sys_wait \n");
+	
 		break;
 	}	
 	case SYS_CREATE:
 	{
+		//printf("sys_create \n");
 		break;
 	}
 	case SYS_REMOVE:
 	{
+		//printf("sys_remove \n");
 		break;
 	}
 	case SYS_OPEN:
 	{
+		//printf("sys_open \n");
 		break;
 	}
 	case SYS_FILESIZE:
 	{
+		//printf("sys_filesize \n");
 		break;
 	}
 	case SYS_READ:
 	{
+		//printf("sys_read \n");
 		break;
 	}
 	case SYS_WRITE:
 	{
+		//printf("sys_write \n");
+		
+		check_ptr((const void*) (f->esp+4));
+		check_ptr((const void*) (f->esp+8));
+		check_ptr((const void*) (f->esp+12));
+		
+		int file_des = *(int *)(f->esp+4);
+		
+		if(file_des == 0)
+		{thread_exit(-1);}
+
+		void *buf = *(char **) (f->esp+8);
+		unsigned length = *(unsigned *)(f->esp+12);
+
+		struct thread *cur = thread_current();
+		buf = pagedir_get_page(cur -> pagedir, (const void*) buf); 	
+		
+		if(!buf){thread_exit(-1);}
+
+		f->eax = write(file_des, buf, length);		
 		break;
 	}
 	case SYS_SEEK:
 	{
+		//printf("sys_seek \n");
 		break;
 	}
 	case SYS_TELL:
 	{
+		//printf("sys_tell \n");
 		break;
 	}
 	case SYS_CLOSE:
 	{
+		//printf("sys_close \n");
 		break;
 	}
 
@@ -127,7 +161,36 @@ void halt (void)
 
 void exit (int status)
 {
+  //printf("exiting program");
   thread_exit(status);
 }
 
+int write(int fd, const void* buffer, unsigned size)
+{
+	int bytes;
+	
+	if(fd==1)
+	{
+		putbuf(buffer, size);
+		bytes = size;	
+	}
+
+	return bytes;
+}
+
+tid_t exec(const char *cmd_line)
+{
+	tid_t tid;
+	tid = process_execute(cmd_line);
+
+	return tid;
+}
+
+void check_ptr(const void* vaddr)
+{
+	if(!(is_user_vaddr(vaddr)))
+  		{
+			thread_exit(-1);
+  		}
+}
 

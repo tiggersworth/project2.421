@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/syscall.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -57,18 +58,38 @@ process_execute (const char *file_name)
   //printf(fn_command);
   //printf("\n"); 
 
-  thread_current() -> command_args = fn_command;
+  //thread_current() -> command_args = fn_command;
 
-  //printf(thread_current() -> command_args);
-  //printf("\n");
+  //printf(file_name);
+  //printf(" filename \n");
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
 
-  /*struct thread *thd;
-  thd = thread_get(tid);
-  thd -> command_args = fn_command;*/
+
+
+  //IMPLEMENTATION
+
+  if (tid == TID_ERROR)
+  {
+    palloc_free_page (fn_copy);
+    free(fn_command);
+    tid = -1;
+    return tid; 
+  }
+  //Add child process to parent childproc_list and assign the child thread to a childprocess struct, and then sleeps parent by calling sema down
+  struct thread *thread_id = get_thread_bytid(tid);
+  struct childprocess *child_process = malloc(sizeof(struct childprocess));
+  
+  child_process -> tid = tid;
+  thread_id -> c_p = child_process;
+  thread_id -> command_args = fn_command;
+  list_push_front(&thread_current() -> childproc_list, &child_process -> elem);
+  sema_down(&thread_id -> wait_sema);
+
+  //testing
+  thread_id = get_thread_bytid(tid);
+  if(thread_id == NULL){tid = -1; return tid;}
+
   
   return tid;
 }
@@ -89,16 +110,30 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
 
   
-  printf("Start Process: \n");
+  //printf("Start Process: \n");
 
 
   success = load (file_name, &if_.eip, &if_.esp);
   
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success) 
-    thread_exit (-1);
 
+ 
+  palloc_free_page (file_name);
+
+  //IMPLEMENTATION, if the child process fails, exit immediately and wakes up parent
+  if (!success) 
+  {
+ 	thread_current() -> tid = -1;   
+
+ 	thread_exit (-1);
+	sema_up(&thread_current() -> wait_sema);
+
+  }
+  else
+  {
+	sema_up(&thread_current() -> wait_sema);
+
+  }
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -121,16 +156,65 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  //while(1);
 
-  return -1;
+	//IMPLMENTATION
+  struct thread *thread_tid = get_thread_bytid(child_tid);
+  int exit = 0;
+  
+  if(!thread_tid || thread_tid -> parent_process != thread_current() -> tid)
+  {
+	exit = -1;
+	return exit;
+  }
+  
+  if(thread_tid -> parent_process == thread_current() -> tid && thread_tid->c_p->waiting)
+  {
+	exit = -1;
+	return exit;
+  }
+  
+  thread_tid->c_p->waiting = true;
+  sema_down(&thread_tid -> wait_sema);
+
+  exit = thread_tid -> c_p -> exit_status;
+
+  return exit;
 }
 
 /* Free the current process's resources. */
 void
 process_exit (int s)
 {
+
+  //IMPLEMENTATION
   struct thread *cur = thread_current ();
+ // struct list_elem *e;
+  cur->c_p -> exit_status = s;
+
+  /*for (e = list_begin (&cur-> childproc_list); e != list_end (&cur -> childproc_list); e = list_next (e))
+  {
+      struct childprocess *cp = list_entry (e, struct childprocess, elem);
+      list_remove(&cp -> elem);
+      free(cp);
+  }*/
+  struct list_elem *e = list_begin(&cur->childproc_list);
+  struct list_elem *next_e;
+  
+  while (e != list_end (&cur->childproc_list))
+  {
+	  next_e = list_next(e);
+	  struct childprocess *cp = list_entry (e, struct childprocess, elem);
+	  list_remove(&cp -> elem);
+	  free(cp);
+	  e = next_e;
+  }
+
+  //print out exit process name and status
+  printf("%s: exit(%d)\n", cur -> command_args, s);
+  sema_up(&cur -> wait_sema);
+
+
+
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
@@ -270,7 +354,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   op_file = strtok_r(fn_command, " ", &save_ptr);
  
-  if(fn_command !=NULL){
+  /*if(fn_command !=NULL){
   printf("Load Process: ");
   printf("\n");
   printf(op_file );
@@ -278,7 +362,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   }
   else{
   printf("NOTHING HERE");
-  }
+  }*/
 
   file = filesys_open (op_file );
   
@@ -361,7 +445,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  printf("Setup Stack \n");
+  //printf("Setup Stack \n");
   if (!setup_stack (file_name, esp))
     goto done;
 
@@ -520,8 +604,8 @@ setup_stack (const char *file_name, void **esp)
   
 	strlcpy (fn_arguments, file_name, PGSIZE);
 	//fn_arguments = file_name;
-	printf(fn_arguments);
-  	printf("\n");
+	//printf(fn_arguments);
+  	//printf("\n");
 	argc = 0;
 	int count;
 	for(tokens = strtok_r(fn_arguments, " ", &save_ptrs); tokens != NULL; tokens = strtok_r(NULL, " ", &save_ptrs))
@@ -531,29 +615,29 @@ setup_stack (const char *file_name, void **esp)
 		//argv[argc] = *esp;
 		words[argc] = tokens;		
 
-		printf("words[]: \n");
-		printf(words[argc]);
-		printf("\n");
+		//printf("words[]: \n");
+		//printf(words[argc]);
+		//printf("\n");
 		
 		//memcpy(*esp, tokens, strlen(tokens));
 				
 		argc = argc+1;
 		//memcpy(*esp, tokens, strlen(tokens+1));		
-		printf("argc: \n");
-		printf("%d", argc);
-		printf("\n");
+		//printf("argc: \n");
+		//printf("%d", argc);
+		//printf("\n");
 
 	}
 	
 	//copy arguments to stack
 	for( count =argc-1 ; count >= 0; count--)
 	{
-		printf("Args to Stack: \n");
+		//printf("Args to Stack: \n");
 	
 		//*esp -= 1;
 		//char *stack_args = words[count];
-		printf(words[count]);
-		printf("\n");
+		//printf(words[count]);
+		//printf("\n");
 		*esp = *esp - (strlen(words[count])+1);
 	
 		argv[count] = *esp;
@@ -593,7 +677,7 @@ setup_stack (const char *file_name, void **esp)
 	*esp = *esp - sizeof(void *);
 	memcpy(*esp, &argv[argc], sizeof(void *));
 
-	hex_dump(PHYS_BASE - 128, PHYS_BASE - 128, 128, true);
+	//hex_dump(PHYS_BASE - 128, PHYS_BASE - 128, 128, true);
 	
       }
       else
