@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -96,8 +97,15 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    char *command_args;
 
+    //IMPLEMENTATION
+    char *command_args;			//command from arg parsing
+    int file_descriptor; 		//file descriptor for sys_open
+    struct list file_list;		//file list
+    struct list childproc_list;		// child processes list
+    struct childprocess* c_p;		// child process struc
+    tid_t parent_process;		// parent process for a child process
+    struct semaphore wait_sema;		// sema for process_wait
 #endif
 
     /* Owned by thread.c. */
@@ -139,5 +147,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+//IMPLEMENTATION declare function for get thread by tid
+struct thread* get_thread_bytid(tid_t tid);
 
 #endif /* threads/thread.h */

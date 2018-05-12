@@ -84,6 +84,34 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+
+//IMPLEMENTATION for getting thread by tid
+struct thread* get_thread_bytid(tid_t ttid)
+{
+	struct thread *thread_tid;
+	
+	struct list_elem *elem;
+
+	enum intr_level old_level =intr_disable ();
+	ASSERT (intr_get_level () == INTR_OFF);
+	thread_tid = NULL;
+	for (elem = list_begin (&all_list); elem != list_end (&all_list); elem = list_next (elem))
+        {
+     		struct thread *t = list_entry (elem, struct thread, allelem);
+
+      		if (ttid == t->tid)
+	  	{
+		  thread_tid = t;
+
+		  break;
+	  	}
+   	 }
+
+	intr_set_level (old_level);
+
+	return thread_tid;
+}
+
 void
 thread_init (void) 
 {
@@ -197,7 +225,9 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
+  
+  //IMPLMENTATION current thread creates a process, process parent = current thread
+  t->parent_process = thread_current() -> tid;
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -282,8 +312,13 @@ thread_exit (int s)
 {
   ASSERT (!intr_context ());
 
+// IMPLEMENTATION
+
 #ifdef USERPROG
-  process_exit (s);
+
+  process_exit(s);
+
+
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -465,6 +500,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
+  
+  //IMPLEMENTATION, Init all the lists and sema 
+  list_init(&t -> childproc_list);
+  list_init(&t -> file_list);
+  sema_init (&t -> wait_sema, 0);
+
+
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
 }
