@@ -87,8 +87,7 @@ process_execute (const char *file_name)
   sema_down(&thread_id -> wait_sema);
 
   //testing
-  thread_id = get_thread_bytid(tid);
-  if(thread_id == NULL){tid = -1; return tid;}
+  
 
   
   return tid;
