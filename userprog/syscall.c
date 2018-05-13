@@ -194,53 +194,6 @@ int write(int fd, const void* buffer, unsigned size)
 }
 
 
-/*struct fd_entry
-{
-  int fd;
-  struct file *file;
-  struct list_elem elem;
-};
-
-static struct fd_entry* get_fd_entry(int fd)
-{
-  struct list_elem *e;
-  struct fd_entry *fe = NULL;
-  struct list *fd_table = &thread_current()->file_list;
-
-  for (e = list_begin (fd_table); e != list_end (fd_table);
-       e = list_next (e))
-    {
-      struct fd_entry *tmp = list_entry (e, struct fd_entry, elem);
-      if(tmp->fd == fd){
-        fe = tmp;
-        break;
-      }
-    }
-
-  return fe;
-}
-
-static int allocate_fd (void)
-{
-  return thread_current()->file_descriptor++;
-}
-
-int open(const char *file_name){
-struct file * f = filesys_open (file_name);
-  if (f == NULL)
-    return -1;
-  struct fd_entry *fd_entry = malloc (sizeof(struct fd_entry));
-  if (fd_entry == NULL)
-    return -1;
-  fd_entry->fd = allocate_fd();
-  fd_entry->file = f;
-  list_push_back(&thread_current()->file_list, &fd_entry->elem);
-
-  return fd_entry->fd;
-	
-
-}*/
-
 struct file_process
 {
 	int fd;
@@ -276,21 +229,19 @@ struct file_process
   }
 
 
-static int allocate_fd (void)
+static int put (void)
 {
   return thread_current()->file_descriptor++;
 }
 
 int open(const char *fname){
+struct file_process *file_process = malloc (sizeof(struct file_process));
 struct file * f = filesys_open (fname);
-  if (f == NULL){
+  if (f == NULL || file == NULL){
     return -1;
 }
-  struct file_process *file_process = malloc (sizeof(struct file_process));
-  if (file_process == NULL){
-    return -1;
-}
-  file_process->fd = allocate_fd();
+
+  file_process->fd = put();
   file_process->file = f;
   list_push_back(&thread_current()->file_list, &file_process
    ->file_elem);
