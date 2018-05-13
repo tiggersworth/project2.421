@@ -498,7 +498,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
+  t -> file_descriptor = 2; // file_descriptor = 2 because fd 1 is write and fd 0 is read
   old_level = intr_disable ();
   
   //IMPLEMENTATION, Init all the lists and sema 
