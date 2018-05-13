@@ -65,20 +65,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 			thread_exit(-1);
   		}*/
 		check_ptr((const void*) (f->esp+4));
-		struct thread *cur = thread_current();
-		void* filename = *(char **)(f->esp+4);
-		filename = pagedir_get_page(cur->pagedir, (const void *) filename);
-		
-		if(filename == NULL)
-		{
-			thread_exit(-1);
-		}
-		else
-		{
-		char *command = *(char **)(f->esp+4);
-		
-		f->eax = exec((const char*) command);	
-		}			
+					
 			
 		
 		break;
@@ -198,7 +185,7 @@ int write(int fd, const void* buffer, unsigned size)
 
 tid_t exec(const char *cmd_line)
 {
-	tid_t tid;
+	int tid;
 	tid = process_execute(cmd_line);
 
 	return tid;
