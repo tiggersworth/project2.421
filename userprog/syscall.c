@@ -209,11 +209,10 @@ struct file_process
   struct list_elem *e;
   struct file_process *file_entry = NULL;
   struct list *fd_table = &thread_current()->file_list;
-  //struct file_process *current_e;
+  
 
   while(e != list_end(fd_table)){
       e= list_next(e);
-      //current_e = list_entry (e, struct file_process,file_elem);
       if((list_entry (e, struct file_process,file_elem))->fd != fd){
 	continue;
       }else{
@@ -237,7 +236,7 @@ static int put (void)
 int open(const char *fname){
 struct file_process *file_process = malloc (sizeof(struct file_process));
 struct file * f = filesys_open (fname);
-  if (f == NULL || file == NULL){
+  if (f == NULL || file_process == NULL){
     return -1;
 }
 
