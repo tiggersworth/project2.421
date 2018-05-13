@@ -16,7 +16,7 @@ static void syscall_handler (struct intr_frame *);
 struct file_process
 {
 	int fd;
-	struct file* file;
+	struct file* file_name;
 	struct list_elem file_elem;
 };
 
@@ -47,10 +47,11 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_EXIT:
 	{
 		//printf("sys_exit \n");
-		if(!(is_user_vaddr((const void*) (f->esp+4))))
+		/*if(!(is_user_vaddr((const void*) (f->esp+4))))
   		{
 			thread_exit(-1);
-  		}
+  		}*/
+		check_ptr((const void*) (f->esp+4));
 		int status;
 		status = *((int *) f->esp+1);
 		exit(status);
@@ -59,11 +60,11 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_EXEC:
 	{
 		//printf("sys_exec \n");
-		if(!(is_user_vaddr((const void*) (f->esp+4))))
+		/*if(!(is_user_vaddr((const void*) (f->esp+4))))
   		{
 			thread_exit(-1);
-  		}
-		
+  		}*/
+		check_ptr((const void*) (f->esp+4));
 		struct thread *cur = thread_current();
 		void* filename = *(char **)(f->esp+4);
 		filename = pagedir_get_page(cur->pagedir, (const void *) filename);
@@ -72,10 +73,12 @@ syscall_handler (struct intr_frame *f UNUSED)
 		{
 			thread_exit(-1);
 		}
+		else
+		{
 		char *command = *(char **)(f->esp+4);
 		
 		f->eax = exec((const char*) command);	
-			
+		}			
 			
 		
 		break;
@@ -99,6 +102,21 @@ syscall_handler (struct intr_frame *f UNUSED)
 	case SYS_OPEN:
 	{
 		//printf("sys_open \n");
+		check_ptr((const void*) (f->esp+4));
+		struct thread *cur = thread_current();
+
+		void* filename = *(char **)(f->esp+4);
+		filename = pagedir_get_page(cur->pagedir, (const void *) filename);
+
+		if(filename == NULL)
+		{
+			thread_exit(-1);
+		}
+		else
+		{
+			f->eax = open((const char*)(filename));
+		
+		}
 		break;
 	}
 	case SYS_FILESIZE:
@@ -186,9 +204,39 @@ tid_t exec(const char *cmd_line)
 	return tid;
 }
 
+int open(const char *file)
+{
+	struct file *open_file = filesys_open(file);
+	
+	struct thread *cur = thread_current();
+
+	if(open_file)
+	{
+		if(cur-> file_descriptor < 2)
+		{
+			cur-> file_descriptor = 2;
+		}	
+		
+		struct file_process *fp = malloc(sizeof(struct file_process));
+		fp -> fd = thread_current() -> file_descriptor;
+		thread_current() -> file_descriptor = thread_current() -> file_descriptor+1;
+		fp -> file_name = open_file;
+		
+
+		list_push_front(&cur->file_list, &fp-> file_elem);
+	}	
+	else if (open_file == NULL){return -1;}
+
+
+	return thread_current() -> file_descriptor;
+	
+
+
+}
+
 void check_ptr(const void* vaddr)
 {
-	if(!(is_user_vaddr(vaddr)))
+	if(!(is_user_vaddr((const void *) (vaddr) )))
   		{
 			thread_exit(-1);
   		}
